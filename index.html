@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Antalya Space Center (ASC) - WebAR & 3D Portal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050811; color: white; font-family: sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ar-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; display: none; }
+        .ui-layer { position: relative; z-index: 10; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.15); }
+    </style>
+</head>
+<body>
+
+    <!-- AR Kamera Akışı -->
+    <video id="ar-video" autoplay playsinline></video>
+
+    <!-- 3D WebGL Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Katmanı -->
+    <div class="ui-layer h-screen flex flex-col justify-between p-4 md:p-6">
+        
+        <!-- Üst Navigasyon -->
+        <header class="glass rounded-2xl p-4 flex justify-between items-center interactive">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="openModal('welcome')">
+                <div class="w-4 h-4 bg-cyan-400 rounded-full animate-ping"></div>
+                <h1 class="text-base md:text-xl font-bold tracking-wider text-cyan-400">ANTALYA SPACE CENTER</h1>
+            </div>
+            <nav class="hidden md:flex gap-6 text-sm font-medium">
+                <button onclick="openModal('digital-twin')" class="hover:text-cyan-400 transition cursor-pointer">3D Dijital İkiz</button>
+                <button onclick="openModal('schedule')" class="hover:text-cyan-400 transition cursor-pointer">Fırlatma Takvimi</button>
+                <button onclick="openModal('ar-vr')" class="hover:text-cyan-400 transition cursor-pointer">AR/VR Deneyim</button>
+                <button onclick="openModal('telemetry')" class="hover:text-cyan-400 transition cursor-pointer">OMNI-AI Telemetri</button>
+            </nav>
+            <button onclick="openModal('ticket')" class="bg-cyan-500 hover:bg-cyan-600 text-black font-semibold px-3 py-2 text-xs md:text-sm rounded-xl transition cursor-pointer">
+                VR Bilet Al
+            </button>
+        </header>
+
+        <!-- Canlı Telemetri Paneli (Sol) -->
+        <div class="flex justify-between items-end">
+            <div class="glass p-4 rounded-2xl w-72 md:w-80 interactive space-y-2 cursor-pointer hover:border-cyan-400/50 transition" onclick="openModal('telemetry')">
+                <div class="text-[10px] font-semibold text-cyan-400 tracking-widest uppercase">ASC OMNI-AI CANLI VERİ</div>
+                <div class="text-xs md:text-sm"><strong>Hedef:</strong> Antalya Suborbital Pad-1</div>
+                <div class="text-xs md:text-sm"><strong>Uydu:</strong> ASC-CubeSat1 (LEO 520km)</div>
+                <div class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden mt-2">
+                    <div class="bg-cyan-400 h-full w-3/4 animate-pulse"></div>
+                </div>
+            </div>
+
+            <!-- AI Asistan & AR Başlatma Köşesi -->
+            <div class="flex flex-col gap-2 items-end">
+                <button id="ar-btn" onclick="startWebAR()" class="glass interactive px-4 py-3 rounded-2xl border-cyan-400 text-cyan-400 font-bold text-xs flex items-center gap-2 hover:bg-cyan-500 hover:text-black transition cursor-pointer">
+                    <span>📱</span> WebAR Kamerayı Aç
+                </button>
+                <div class="glass p-3 rounded-2xl w-64 md:w-80 interactive flex items-center gap-3 border-l-4 border-cyan-400 cursor-pointer hover:bg-slate-800 transition" onclick="openModal('ai-chat')">
+                    <div class="text-xl">🤖</div>
+                    <div class="text-[11px] text-gray-200">
+                        <strong>ASC OMNI-AI:</strong> "Sorularınızı yanıtlamaya hazırım. Tıklayın!"
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL (PENCERE) -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass rounded-3xl max-w-xl w-full p-6 relative border border-cyan-500/30 text-white shadow-2xl">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold p-2">✕</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- THREE.JS SAHNE KURULUMU ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        // 3D Roket Gövdesi Mimarisi
+        const rocketGroup = new THREE.Group();
+
+        // Roket Gövdesi (Silindir)
+        const bodyGeo = new THREE.CylinderGeometry(0.5, 0.5, 3, 16);
+        const bodyMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, wireframe: true });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        rocketGroup.add(body);
+
+        // Roket Burnu (Koni)
+        const noseGeo = new THREE.ConeGeometry(0.5, 1, 16);
+        const noseMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
+        const nose = new THREE.Mesh(noseGeo, noseMat);
+        nose.position.y = 2;
+        rocketGroup.add(nose);
+
+        // Roket Kanatları
+        const finGeo = new THREE.BoxGeometry(0.1, 0.8, 1.5);
+        const finMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff, wireframe: true });
+        const fin = new THREE.Mesh(finGeo, finMat);
+        fin.position.y = -1;
+        rocketGroup.add(fin);
+
+        scene.add(rocketGroup);
+        camera.position.z = 6;
+
+        // Dokunmatik ve Fare İle Döndürme
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        window.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaMove = { x: e.offsetX - previousMousePosition.x, y: e.offsetY - previousMousePosition.y };
+                rocketGroup.rotation.y += deltaMove.x * 0.005;
+                rocketGroup.rotation.x += deltaMove.y * 0.005;
+            }
+            previousMousePosition = { x: e.offsetX, y: e.offsetY };
+        });
+
+        // Mobil Dokunmatik Desteği
+        window.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        });
+        window.addEventListener('touchend', () => isDragging = false);
+        window.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                const deltaMove = { x: e.touches[0].clientX - previousMousePosition.x, y: e.touches[0].clientY - previousMousePosition.y };
+                rocketGroup.rotation.y += deltaMove.x * 0.005;
+                rocketGroup.rotation.x += deltaMove.y * 0.005;
+            }
+            previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isDragging) {
+                rocketGroup.rotation.y += 0.005;
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- Mobil WebAR KAMERA SİSTEMİ ---
+        async function startWebAR() {
+            const video = document.getElementById('ar-video');
+            const arBtn = document.getElementById('ar-btn');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+                video.style.display = "block";
+                
+                // Arka planı şeffaf yapıp roket ölçeğini küçült
+                renderer.setClearColor(0x000000, 0);
+                rocketGroup.scale.set(0.6, 0.6, 0.6);
+                
+                arBtn.innerHTML = "<span>🚀</span> AR Modu Aktif (Masanıza Yansıtıldı)";
+                arBtn.classList.add("bg-cyan-500", "text-black");
+            } catch (err) {
+                alert("Kamera izni alınamadı veya cihazınız kamera erişimini desteklemiyor.");
+            }
+        }
+
+        // --- MODAL YÖNETİMİ ---
+        const modalData = {
+            'digital-twin': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🌐 3D Dijital İkiz</h2><p class="text-xs text-gray-300">Antalya tesisi fiziksel sensör verileri doğrudan bu 3D modele aktarılır.</p>`,
+            'schedule': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🚀 Fırlatma Takvimi</h2><p class="text-xs text-gray-300">Gelecek test fırlatması: Suborbital Rocket-V1 (14 Gün Sonra)</p>`,
+            'ar-vr': `
+                <h2 class="text-xl font-bold text-cyan-400 mb-3">🥽 AR / VR İmmersif Simülasyonlar</h2>
+                <p class="text-xs text-gray-300 mb-3">Sağ alttaki <strong>'WebAR Kamerayı Aç'</strong> butonuna basarak kameranızı açabilir ve 3D roketi masanızın üzerine getirebilirsiniz!</p>
+                <button onclick="startWebAR(); closeModal();" class="w-full bg-cyan-500 text-black font-bold p-2 text-xs rounded-xl">Kamerayı Şimdi Aç</button>
+            `,
+            'telemetry': `<h2 class="text-xl font-bold text-cyan-400 mb-3">📊 OMNI-AI Telemetri</h2><p class="text-xs text-gray-300">LEO Yörüngesindeki ASC uydusu anomali riski %0.00 olarak doğrulanmıştır.</p>`,
+            'ticket': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🎟️ VR Uzay Bilet Rezervasyonu</h2><p class="text-xs text-gray-300">Antalya Planeteryum VR deneyimi için biletiniz hazırlanıyor...</p>`,
+            'ai-chat': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🤖 ASC OMNI-AI Asistan</h2><p class="text-xs text-gray-300">Proje veya fırlatma detayları hakkında soru sorabilirsiniz.</p>`,
+            'welcome': `<h2 class="text-xl font-bold text-cyan-400 mb-2">🚀 ANTALYA SPACE CENTER</h2><p class="text-xs text-gray-300">Türkiye'nin AI ve 3D entegre uzay portalına hoş geldiniz.</p>`
+        };
+
+        function openModal(key) {
+            document.getElementById('modal-content').innerHTML = modalData[key] || '';
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-backdrop').classList.add('hidden');
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
