@@ -1,207 +1,895 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Antalya Space Center (ASC) - WebAR & 3D Portal</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #050811; color: white; font-family: sans-serif; }
-        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
-        #ar-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; display: none; }
-        .ui-layer { position: relative; z-index: 10; pointer-events: none; }
-        .interactive { pointer-events: auto; }
-        .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.15); }
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>3KapiHub — Antalya Web3 Topluluğu</title>
+<meta name="description" content="Antalya'nın blockchain ve Web3 topluluğu. Etkinlikler, meetup'lar, hackathon'lar ve kripto haberleri."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<style>
+/* ═══════════════════════════════════════════
+   DESIGN SYSTEM — Dark brutalist / rave poster
+═══════════════════════════════════════════ */
+:root{
+  --bg:     #0D0D10;
+  --bg2:    #131318;
+  --bg3:    #1A1A22;
+  --line:   rgba(255,255,255,0.07);
+  --line2:  rgba(255,255,255,0.14);
+  --white:  #F0EDE8;
+  --dim:    rgba(240,237,232,0.45);
+  --dimmer: rgba(240,237,232,0.25);
+  --acid:   #C8FF00;      /* neon lime — 3KapiHub accent */
+  --acid2:  #A8D800;
+  --amber:  #F5A623;
+  --teal:   #00E5CC;
+  --red:    #FF4444;
+  --r:5px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--white);
+  font-family:'DM Sans',sans-serif;
+  font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;cursor:none;
+}
+
+/* ── Custom cursor ── */
+#cursor{
+  width:10px;height:10px;background:var(--acid);border-radius:50%;
+  position:fixed;top:0;left:0;pointer-events:none;z-index:9999;
+  transform:translate(-50%,-50%);
+  transition:transform .12s ease,width .2s,height .2s,background .2s;
+  mix-blend-mode:difference;
+}
+#cursor.big{width:36px;height:36px;background:var(--acid);opacity:.3}
+
+/* ── Grain overlay ── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:.5;mix-blend-mode:overlay;
+}
+
+/* ── Typography ── */
+.display{font-family:'Bebas Neue',sans-serif;letter-spacing:0.04em;line-height:.95}
+.mono{font-family:'JetBrains Mono',monospace}
+.label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--dimmer);
+}
+
+/* ── Ticker ── */
+@keyframes tick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ticker-wrap{background:var(--acid);overflow:hidden;padding:8px 0;position:relative;z-index:10}
+.ticker-inner{display:inline-flex;gap:0;animation:tick 22s linear infinite;white-space:nowrap}
+.ticker-item{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--bg);font-weight:700;letter-spacing:.08em;
+  padding:0 28px;border-right:1px solid rgba(0,0,0,0.2);
+}
+
+/* ── Nav ── */
+nav{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 48px;height:58px;
+  background:rgba(13,13,16,0.9);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line);
+}
+.nav-logo{
+  font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.08em;
+  color:var(--white);text-decoration:none;display:flex;align-items:center;gap:10px;
+}
+.nav-logo .dot{
+  width:8px;height:8px;background:var(--acid);border-radius:50%;
+  animation:pulse 1.8s ease infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.6)}}
+.nav-links{display:flex;gap:6px;align-items:center}
+.nav-link{
+  font-size:12px;font-weight:500;color:var(--dim);
+  background:none;border:none;cursor:pointer;
+  padding:6px 12px;border-radius:3px;
+  transition:color .15s,background .15s;
+  font-family:'DM Sans',sans-serif;letter-spacing:.02em;
+  text-decoration:none;
+}
+.nav-link:hover{color:var(--white);background:var(--bg3)}
+.nav-cta{
+  background:var(--acid);color:var(--bg);
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;font-weight:700;letter-spacing:.08em;
+  padding:9px 20px;border-radius:3px;border:none;cursor:pointer;
+  transition:background .2s;text-decoration:none;display:inline-block;
+}
+.nav-cta:hover{background:var(--acid2)}
+
+/* ── Hero ── */
+.hero{
+  position:relative;min-height:92vh;
+  display:grid;grid-template-columns:1fr 1fr;
+  overflow:hidden;
+}
+.hero-left{
+  padding:80px 56px 80px 72px;
+  display:flex;flex-direction:column;justify-content:center;
+  position:relative;z-index:2;border-right:1px solid var(--line);
+}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  margin-bottom:28px;
+}
+.hero-eyebrow-dot{
+  width:6px;height:6px;background:var(--acid);border-radius:50%;
+  animation:pulse 1.8s ease infinite;
+}
+.hero-h1{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(72px,8vw,116px);
+  line-height:.92;letter-spacing:.03em;
+  color:var(--white);
+  margin-bottom:28px;
+}
+.hero-h1 em{color:var(--acid);font-style:normal}
+.hero-desc{
+  font-size:15px;color:var(--dim);line-height:1.8;
+  max-width:380px;margin-bottom:40px;
+}
+.hero-ctas{display:flex;gap:12px;flex-wrap:wrap}
+.btn-acid{
+  background:var(--acid);color:var(--bg);
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;font-weight:700;letter-spacing:.08em;
+  padding:13px 28px;border-radius:3px;border:none;cursor:pointer;
+  transition:all .2s;text-decoration:none;display:inline-block;
+}
+.btn-acid:hover{background:var(--acid2);transform:translateY(-1px)}
+.btn-ghost{
+  background:transparent;color:var(--dim);
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;font-weight:500;letter-spacing:.08em;
+  padding:12px 24px;border-radius:3px;
+  border:1px solid var(--line2);cursor:pointer;
+  transition:all .2s;text-decoration:none;display:inline-block;
+}
+.btn-ghost:hover{color:var(--white);border-color:rgba(255,255,255,0.35)}
+
+/* hero right — live board */
+.hero-right{
+  padding:64px 56px;
+  display:flex;flex-direction:column;justify-content:center;
+  gap:16px;position:relative;z-index:2;
+  background:linear-gradient(160deg,var(--bg2) 0%,var(--bg) 100%);
+}
+.live-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,68,68,0.12);border:1px solid rgba(255,68,68,0.25);
+  padding:4px 12px;border-radius:100px;width:fit-content;
+  margin-bottom:8px;
+}
+.live-badge span{font-size:10px;color:var(--red);font-family:'JetBrains Mono',monospace;letter-spacing:.1em}
+.live-dot{width:6px;height:6px;background:var(--red);border-radius:50%;animation:pulse 1s ease infinite}
+
+.event-card{
+  background:var(--bg3);border:1px solid var(--line);
+  border-radius:8px;padding:18px 20px;
+  display:grid;grid-template-columns:56px 1fr auto;gap:14px;align-items:center;
+  transition:border-color .2s,transform .2s;cursor:pointer;
+}
+.event-card:hover{border-color:var(--acid);transform:translateX(4px)}
+.event-card.featured{border-color:rgba(200,255,0,0.3);background:linear-gradient(135deg,rgba(200,255,0,0.04),var(--bg3))}
+.event-date-box{
+  background:var(--bg2);border:1px solid var(--line);
+  border-radius:6px;padding:8px 4px;text-align:center;
+}
+.event-date-num{font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;color:var(--acid)}
+.event-date-mon{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.15em;color:var(--dimmer);text-transform:uppercase}
+.event-name{font-size:14px;font-weight:500;color:var(--white);margin-bottom:4px;line-height:1.3}
+.event-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dimmer)}
+.days-pill{
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
+  padding:4px 9px;border-radius:3px;white-space:nowrap;
+}
+
+/* ── Section wrapper ── */
+.section{max-width:1200px;margin:0 auto;padding:80px 48px}
+.section-sm{max-width:1200px;margin:0 auto;padding:60px 48px}
+
+/* ── Divider with label ── */
+.section-head{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  margin-bottom:36px;padding-bottom:16px;border-bottom:1px solid var(--line);
+}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:.04em;color:var(--white)}
+.section-title em{color:var(--acid);font-style:normal}
+
+/* ── Full-width band ── */
+.band{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:24px 48px}
+.band-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:32px;flex-wrap:wrap}
+
+/* ── Event list ── */
+.events-table{display:flex;flex-direction:column;gap:2px}
+.ev-row{
+  display:grid;grid-template-columns:80px 1fr 140px 140px;
+  gap:0;align-items:stretch;
+  background:var(--bg2);border:1px solid var(--line);
+  border-radius:0;cursor:pointer;transition:background .15s,border-color .15s;
+  border-top:none;
+}
+.ev-row:first-child{border-radius:8px 8px 0 0;border-top:1px solid var(--line)}
+.ev-row:last-child{border-radius:0 0 8px 8px}
+.ev-row:hover{background:var(--bg3);border-color:var(--line2)}
+.ev-row.open{background:var(--bg3);border-color:rgba(200,255,0,0.2)}
+.ev-cell{padding:16px 20px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
+.ev-cell:last-child{border-right:none}
+.ev-date-big{font-family:'Bebas Neue',sans-serif;font-size:32px;line-height:1;color:var(--white)}
+.ev-date-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dimmer);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
+.ev-title{font-size:14px;font-weight:500;color:var(--white);margin-bottom:5px;line-height:1.35}
+.ev-loc{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dimmer)}
+.ev-tag{
+  display:inline-block;font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 8px;border-radius:2px;border:1px solid transparent;width:fit-content;
+}
+.tag-conf  {background:rgba(100,80,200,0.15);color:#A090FF;border-color:rgba(100,80,200,0.25)}
+.tag-hack  {background:rgba(255,68,68,0.12);color:var(--red);border-color:rgba(255,68,68,0.2)}
+.tag-meetup{background:rgba(0,229,204,0.1);color:var(--teal);border-color:rgba(0,229,204,0.2)}
+.tag-summit{background:rgba(245,166,35,0.12);color:var(--amber);border-color:rgba(245,166,35,0.2)}
+.tag-wkshp {background:rgba(100,160,255,0.12);color:#80B0FF;border-color:rgba(100,160,255,0.2)}
+.ev-detail{
+  max-height:0;overflow:hidden;transition:max-height .3s ease;
+  grid-column:1/-1;border-top:0 solid var(--line);
+}
+.ev-detail.open{max-height:200px;border-top:1px solid var(--line)}
+.ev-detail-inner{padding:16px 20px;display:flex;gap:32px;align-items:flex-start}
+.ev-detail-inner p{font-size:13px;color:var(--dim);line-height:1.7;flex:1}
+
+/* ── Affiliate grid ── */
+.aff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.aff-card{
+  background:var(--bg2);border:1px solid var(--line);border-radius:8px;
+  padding:24px;transition:border-color .2s,transform .2s;cursor:pointer;
+  text-decoration:none;display:block;
+}
+.aff-card:hover{border-color:var(--acid);transform:translateY(-3px)}
+.aff-icon{font-size:36px;margin-bottom:14px}
+.aff-name{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.06em;color:var(--white);margin-bottom:6px}
+.aff-desc{font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:14px}
+.aff-reward{
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+  color:var(--acid);background:rgba(200,255,0,0.08);
+  border:1px solid rgba(200,255,0,0.15);
+  padding:4px 10px;border-radius:3px;display:inline-block;
+}
+
+/* ── Tools grid ── */
+.tools-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tool-card{
+  background:var(--bg2);border:1px solid var(--line);border-radius:8px;
+  padding:20px;text-align:center;
+  transition:border-color .2s;cursor:pointer;
+}
+.tool-card:hover{border-color:var(--teal)}
+.tool-icon{font-size:28px;margin-bottom:10px}
+.tool-name{font-size:13px;font-weight:500;color:var(--white);margin-bottom:4px}
+.tool-sub{font-size:11px;color:var(--dimmer)}
+
+/* ── Membership strip ── */
+.mem-strip{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+}
+.mem-plan{padding:28px 24px;border-right:1px solid var(--line)}
+.mem-plan:last-child{border-right:none}
+.mem-plan.hot{background:linear-gradient(160deg,rgba(200,255,0,0.06),var(--bg2))}
+.mem-tier{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dimmer);margin-bottom:10px}
+.mem-price{font-family:'Bebas Neue',sans-serif;font-size:48px;letter-spacing:.02em;line-height:1;color:var(--white)}
+.mem-price span{font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dimmer);font-weight:300}
+.mem-desc{font-size:12px;color:var(--dim);margin:10px 0 18px;line-height:1.6}
+.mem-feats{list-style:none;margin-bottom:22px;display:flex;flex-direction:column;gap:0}
+.mem-feats li{font-size:12px;color:var(--dim);padding:7px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.mem-feats li::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--acid);flex-shrink:0}
+
+/* ── Community CTA ── */
+.community-cta{
+  background:var(--acid);border-radius:10px;padding:48px 52px;
+  display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;
+}
+.cta-title{font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:.04em;line-height:.95;color:var(--bg)}
+.cta-desc{font-size:14px;color:rgba(13,13,16,0.6);line-height:1.7;max-width:420px;margin-top:14px}
+.btn-dark{
+  background:var(--bg);color:var(--white);
+  font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.08em;padding:14px 28px;border-radius:3px;
+  border:none;cursor:pointer;text-decoration:none;display:inline-block;
+  transition:opacity .2s;white-space:nowrap;
+}
+.btn-dark:hover{opacity:.8}
+.btn-dark-outline{
+  background:transparent;color:var(--bg);
+  font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.08em;padding:13px 24px;border-radius:3px;
+  border:2px solid rgba(13,13,16,0.35);cursor:pointer;
+  text-decoration:none;display:inline-block;transition:all .2s;
+}
+.btn-dark-outline:hover{background:rgba(13,13,16,0.1)}
+
+/* ── Portal banner ── */
+.portal-banner{
+  background:var(--bg2);border:1px solid var(--line);
+  border-radius:10px;padding:28px 36px;
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:20px;
+}
+.portal-text h3{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:.04em;margin-bottom:4px}
+.portal-text p{font-size:13px;color:var(--dim)}
+.portal-arrow{
+  font-family:'Bebas Neue',sans-serif;font-size:42px;
+  color:var(--acid);line-height:1;
+}
+
+/* ── Animations ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.fade{opacity:0;animation:fadeUp .55s ease both}
+.f1{animation-delay:.05s}.f2{animation-delay:.12s}.f3{animation-delay:.2s}.f4{animation-delay:.28s}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--acid);border-radius:2px}
+</style>
 </head>
 <body>
 
-    <!-- AR Kamera Akışı -->
-    <video id="ar-video" autoplay playsinline></video>
+<div id="cursor"></div>
 
-    <!-- 3D WebGL Canvas -->
-    <div id="canvas-container"></div>
+<!-- ══════════ TICKER ══════════ -->
+<div class="ticker-wrap">
+  <div class="ticker-inner" id="ticker">
+    <div class="ticker-item">● 3KapiHub Community — Antalya Web3</div>
+    <div class="ticker-item">MEETUP — 20 HAZ 2026</div>
+    <div class="ticker-item">ETHGlobal Bangkok — 14 gün kaldı</div>
+    <div class="ticker-item">Istanbul Blockchain Week — 22 HAZ</div>
+    <div class="ticker-item">BTC ↑ $67,420 &nbsp;·&nbsp; ETH ↑ $3,284 &nbsp;·&nbsp; SOL ↑ $142</div>
+    <div class="ticker-item">tencentcn.crypto — Asia Web3 Portal</div>
+    <div class="ticker-item">● 3KapiHub Community — Antalya Web3</div>
+    <div class="ticker-item">MEETUP — 20 HAZ 2026</div>
+    <div class="ticker-item">ETHGlobal Bangkok — 14 gün kaldı</div>
+    <div class="ticker-item">Istanbul Blockchain Week — 22 HAZ</div>
+    <div class="ticker-item">BTC ↑ $67,420 &nbsp;·&nbsp; ETH ↑ $3,284 &nbsp;·&nbsp; SOL ↑ $142</div>
+    <div class="ticker-item">tencentcn.crypto — Asia Web3 Portal</div>
+  </div>
+</div>
 
-    <!-- UI Katmanı -->
-    <div class="ui-layer h-screen flex flex-col justify-between p-4 md:p-6">
-        
-        <!-- Üst Navigasyon -->
-        <header class="glass rounded-2xl p-4 flex justify-between items-center interactive">
-            <div class="flex items-center gap-3 cursor-pointer" onclick="openModal('welcome')">
-                <div class="w-4 h-4 bg-cyan-400 rounded-full animate-ping"></div>
-                <h1 class="text-base md:text-xl font-bold tracking-wider text-cyan-400">ANTALYA SPACE CENTER</h1>
-            </div>
-            <nav class="hidden md:flex gap-6 text-sm font-medium">
-                <button onclick="openModal('digital-twin')" class="hover:text-cyan-400 transition cursor-pointer">3D Dijital İkiz</button>
-                <button onclick="openModal('schedule')" class="hover:text-cyan-400 transition cursor-pointer">Fırlatma Takvimi</button>
-                <button onclick="openModal('ar-vr')" class="hover:text-cyan-400 transition cursor-pointer">AR/VR Deneyim</button>
-                <button onclick="openModal('telemetry')" class="hover:text-cyan-400 transition cursor-pointer">OMNI-AI Telemetri</button>
-            </nav>
-            <button onclick="openModal('ticket')" class="bg-cyan-500 hover:bg-cyan-600 text-black font-semibold px-3 py-2 text-xs md:text-sm rounded-xl transition cursor-pointer">
-                VR Bilet Al
-            </button>
-        </header>
+<!-- ══════════ NAV ══════════ -->
+<nav>
+  <a href="#" class="nav-logo">
+    <span class="dot"></span>
+    3KapiHub
+  </a>
+  <div class="nav-links">
+    <a href="#events" class="nav-link">Etkinlikler</a>
+    <a href="#tools" class="nav-link">Araçlar</a>
+    <a href="#affiliate" class="nav-link">Kazan</a>
+    <a href="#uyelik" class="nav-link">Üyelik</a>
+    <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="nav-cta" title="Unstoppable Domains profil sayfasında açılır">→ Ana Portal (IPFS)</a>
+  </div>
+</nav>
 
-        <!-- Canlı Telemetri Paneli (Sol) -->
-        <div class="flex justify-between items-end">
-            <div class="glass p-4 rounded-2xl w-72 md:w-80 interactive space-y-2 cursor-pointer hover:border-cyan-400/50 transition" onclick="openModal('telemetry')">
-                <div class="text-[10px] font-semibold text-cyan-400 tracking-widest uppercase">ASC OMNI-AI CANLI VERİ</div>
-                <div class="text-xs md:text-sm"><strong>Hedef:</strong> Antalya Suborbital Pad-1</div>
-                <div class="text-xs md:text-sm"><strong>Uydu:</strong> ASC-CubeSat1 (LEO 520km)</div>
-                <div class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden mt-2">
-                    <div class="bg-cyan-400 h-full w-3/4 animate-pulse"></div>
-                </div>
-            </div>
+<!-- ══════════ HERO ══════════ -->
+<section class="hero">
+  <!-- Left -->
+  <div class="hero-left">
+    <div class="hero-eyebrow fade f1">
+      <span class="hero-eyebrow-dot"></span>
+      <span class="label" style="color:var(--acid);letter-spacing:.18em">Antalya · Web3 · Blockchain</span>
+    </div>
+    <h1 class="hero-h1 fade f2">
+      3Kapi<em>Hub</em><br/>
+      Community
+    </h1>
+    <p class="hero-desc fade f3">
+      Antalya'nın blockchain ve Web3 topluluğu. Etkinlikler, meetup'lar, hackathon'lar ve kripto haberleri tek çatı altında.<br/><br/>
+      <strong style="color:var(--white)">Asus Service China</strong> ev sahipliğinde.<br/>
+      Sinan Mah. 1270 Sok. No:3/B, Muratpaşa.
+    </p>
+    <div class="hero-ctas fade f4">
+      <a href="#uyelik" class="btn-acid">Ücretsiz Üye Ol</a>
+      <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-ghost">Ana Portal ↗</a>
+    </div>
+    <!-- Domain note -->
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--line)">
+      <span class="label" style="display:block;margin-bottom:6px">Powered by</span>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--teal)">3kapihub.qzz.io</span>
+        <span style="color:var(--line2)">·</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--acid)">tencentcn.crypto</span>
+        <span style="color:var(--line2)">·</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dimmer)">DigitalPlat + Unstoppable Domains</span>
+      </div>
+    </div>
+  </div>
 
-            <!-- AI Asistan & AR Başlatma Köşesi -->
-            <div class="flex flex-col gap-2 items-end">
-                <button id="ar-btn" onclick="startWebAR()" class="glass interactive px-4 py-3 rounded-2xl border-cyan-400 text-cyan-400 font-bold text-xs flex items-center gap-2 hover:bg-cyan-500 hover:text-black transition cursor-pointer">
-                    <span>📱</span> WebAR Kamerayı Aç
-                </button>
-                <div class="glass p-3 rounded-2xl w-64 md:w-80 interactive flex items-center gap-3 border-l-4 border-cyan-400 cursor-pointer hover:bg-slate-800 transition" onclick="openModal('ai-chat')">
-                    <div class="text-xl">🤖</div>
-                    <div class="text-[11px] text-gray-200">
-                        <strong>ASC OMNI-AI:</strong> "Sorularınızı yanıtlamaya hazırım. Tıklayın!"
-                    </div>
-                </div>
-            </div>
-        </div>
+  <!-- Right — live events board -->
+  <div class="hero-right">
+    <div>
+      <div class="live-badge">
+        <span class="live-dot"></span>
+        <span>Yaklaşan Etkinlikler</span>
+      </div>
     </div>
 
-    <!-- MODAL (PENCERE) -->
-    <div id="modal-backdrop" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
-        <div class="glass rounded-3xl max-w-xl w-full p-6 relative border border-cyan-500/30 text-white shadow-2xl">
-            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold p-2">✕</button>
-            <div id="modal-content"></div>
-        </div>
+    <div class="event-card featured" onclick="document.getElementById('events').scrollIntoView({behavior:'smooth'})">
+      <div class="event-date-box">
+        <div class="event-date-num">20</div>
+        <div class="event-date-mon">Haz</div>
+      </div>
+      <div>
+        <div class="event-name">3KapiHub Antalya Meetup</div>
+        <div class="event-meta">📍 Asus Service China · Ücretsiz</div>
+      </div>
+      <div class="days-pill" style="background:rgba(200,255,0,0.12);color:var(--acid);border:1px solid rgba(200,255,0,0.2)">20g</div>
     </div>
 
-    <script>
-        // --- THREE.JS SAHNE KURULUMU ---
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        container.appendChild(renderer.domElement);
+    <div class="event-card" onclick="document.getElementById('events').scrollIntoView({behavior:'smooth'})">
+      <div class="event-date-box">
+        <div class="event-date-num">14</div>
+        <div class="event-date-mon">Haz</div>
+      </div>
+      <div>
+        <div class="event-name">Istanbul Blockchain Week 2026</div>
+        <div class="event-meta">📍 İstanbul · $0 – $499</div>
+      </div>
+      <div class="days-pill" style="background:rgba(255,68,68,0.1);color:var(--red);border:1px solid rgba(255,68,68,0.2)">14g</div>
+    </div>
 
-        // 3D Roket Gövdesi Mimarisi
-        const rocketGroup = new THREE.Group();
+    <div class="event-card" onclick="document.getElementById('events').scrollIntoView({behavior:'smooth'})">
+      <div class="event-date-box">
+        <div class="event-date-num">22</div>
+        <div class="event-date-mon">Haz</div>
+      </div>
+      <div>
+        <div class="event-name">ETHGlobal Bangkok 2026</div>
+        <div class="event-meta">📍 Bangkok · Ücretsiz başvuru</div>
+      </div>
+      <div class="days-pill" style="background:rgba(245,166,35,0.1);color:var(--amber);border:1px solid rgba(245,166,35,0.2)">22g</div>
+    </div>
 
-        // Roket Gövdesi (Silindir)
-        const bodyGeo = new THREE.CylinderGeometry(0.5, 0.5, 3, 16);
-        const bodyMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, wireframe: true });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        rocketGroup.add(body);
+    <div class="event-card" onclick="document.getElementById('events').scrollIntoView({behavior:'smooth'})">
+      <div class="event-date-box">
+        <div class="event-date-num">11</div>
+        <div class="event-date-mon">Tem</div>
+      </div>
+      <div>
+        <div class="event-name">Korea Blockchain Week</div>
+        <div class="event-meta">📍 Seul · $150 – $800</div>
+      </div>
+      <div class="days-pill" style="background:rgba(255,255,255,0.06);color:var(--dimmer);border:1px solid var(--line)">41g</div>
+    </div>
 
-        // Roket Burnu (Koni)
-        const noseGeo = new THREE.ConeGeometry(0.5, 1, 16);
-        const noseMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
-        const nose = new THREE.Mesh(noseGeo, noseMat);
-        nose.position.y = 2;
-        rocketGroup.add(nose);
+    <!-- Portal link inside hero -->
+    <div style="background:rgba(200,255,0,0.05);border:1px solid rgba(200,255,0,0.15);border-radius:6px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--white);margin-bottom:2px">Tüm haberler & analizler →</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--acid)">tencentcn.crypto</div>
+      </div>
+      <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-acid" style="font-size:11px;padding:8px 16px">Git →</a>
+    </div>
+  </div>
 
-        // Roket Kanatları
-        const finGeo = new THREE.BoxGeometry(0.1, 0.8, 1.5);
-        const finMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff, wireframe: true });
-        const fin = new THREE.Mesh(finGeo, finMat);
-        fin.position.y = -1;
-        rocketGroup.add(fin);
+  <!-- Decorative bg text -->
+  <div style="position:absolute;right:-0.04em;bottom:-0.08em;font-family:'Bebas Neue',sans-serif;font-size:320px;color:rgba(200,255,0,0.025);pointer-events:none;line-height:1;z-index:1;user-select:none">3K</div>
+</section>
 
-        scene.add(rocketGroup);
-        camera.position.z = 6;
+<!-- ══════════ PORTAL BRIDGE BAND ══════════ -->
+<div class="band">
+  <div class="band-inner">
+    <span class="label" style="color:var(--acid);white-space:nowrap">● Hub Ekosistemi</span>
+    <div style="width:1px;height:18px;background:var(--line2)"></div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--teal);text-decoration:none;display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid rgba(0,229,204,0.2);border-radius:3px;background:rgba(0,229,204,0.05)">
+        <span>🌐</span> tencentcn.crypto — Ana Portal (Web3 Gateway)
+      </a>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dimmer);padding:5px 12px;border:1px solid var(--line);border-radius:3px">
+        📡 3kapihub.qzz.io — Topluluk Hub
+      </span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dimmer);padding:5px 12px;border:1px solid var(--line);border-radius:3px">
+        🏪 Asus Service China — Antalya
+      </span>
+    </div>
+  </div>
+</div>
 
-        // Dokunmatik ve Fare İle Döndürme
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
+<!-- ══════════ EVENTS ══════════ -->
+<div id="events">
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="label" style="margin-bottom:8px">Web3 & Blockchain Takvimi</div>
+      <div class="section-title">Yaklaşan <em>Etkinlikler</em></div>
+    </div>
+    <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-ghost" style="font-size:11px">Tüm takvim → tencentcn.crypto</a>
+  </div>
 
-        window.addEventListener('mousedown', () => isDragging = true);
-        window.addEventListener('mouseup', () => isDragging = false);
-        window.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                const deltaMove = { x: e.offsetX - previousMousePosition.x, y: e.offsetY - previousMousePosition.y };
-                rocketGroup.rotation.y += deltaMove.x * 0.005;
-                rocketGroup.rotation.x += deltaMove.y * 0.005;
-            }
-            previousMousePosition = { x: e.offsetX, y: e.offsetY };
-        });
+  <div class="events-table" id="events-table">
+    <!-- Events populated by JS -->
+  </div>
+</div>
+</div>
 
-        // Mobil Dokunmatik Desteği
-        window.addEventListener('touchstart', (e) => {
-            isDragging = true;
-            previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        });
-        window.addEventListener('touchend', () => isDragging = false);
-        window.addEventListener('touchmove', (e) => {
-            if (isDragging) {
-                const deltaMove = { x: e.touches[0].clientX - previousMousePosition.x, y: e.touches[0].clientY - previousMousePosition.y };
-                rocketGroup.rotation.y += deltaMove.x * 0.005;
-                rocketGroup.rotation.x += deltaMove.y * 0.005;
-            }
-            previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        });
+<!-- ══════════ DEV TOOLS ══════════ -->
+<div style="background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+<div class="section-sm" id="tools">
+  <div class="section-head">
+    <div>
+      <div class="label" style="margin-bottom:8px">Ücretsiz Web3 Araçları</div>
+      <div class="section-title">Geliştirici <em>Toolkit</em></div>
+    </div>
+    <span class="label">Tüm araçlar ücretsiz · Cloudflare CDN</span>
+  </div>
+  <div class="tools-grid">
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">⛽</div>
+      <div class="tool-name">Gas Tracker</div>
+      <div class="tool-sub">ETH · Polygon · Solana</div>
+    </div>
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">🔄</div>
+      <div class="tool-name">Token Dönüştürücü</div>
+      <div class="tool-sub">150+ kripto çifti</div>
+    </div>
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">🖼️</div>
+      <div class="tool-name">NFT Metadata Viewer</div>
+      <div class="tool-sub">ERC-721 · ERC-1155</div>
+    </div>
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">📊</div>
+      <div class="tool-name">Portföy Takibi</div>
+      <div class="tool-sub">Multi-chain anlık</div>
+    </div>
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">🔐</div>
+      <div class="tool-name">Wallet Checker</div>
+      <div class="tool-sub">Risk & güvenlik analizi</div>
+    </div>
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">🌉</div>
+      <div class="tool-name">Bridge Rehberi</div>
+      <div class="tool-sub">En ucuz rota</div>
+    </div>
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">📰</div>
+      <div class="tool-name">Asya Kripto Haber</div>
+      <div class="tool-sub">Günlük özet</div>
+    </div>
+    <div class="tool-card" onclick="window.open('https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link','_blank')">
+      <div class="tool-icon">🎟️</div>
+      <div class="tool-name">Etkinlik Biletleri</div>
+      <div class="tool-sub">3KapiHub üye fiyatı</div>
+    </div>
+  </div>
+  <div style="margin-top:16px;text-align:center;padding:14px;background:var(--bg);border:1px solid var(--line);border-radius:6px">
+    <span style="font-size:13px;color:var(--dim)">Tüm araçlar için </span>
+    <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--acid);text-decoration:none">tencentcn.crypto →</a>
+    <span style="font-size:13px;color:var(--dim)"> adresini ziyaret edin.</span>
+  </div>
+</div>
+</div>
 
-        function animate() {
-            requestAnimationFrame(animate);
-            if (!isDragging) {
-                rocketGroup.rotation.y += 0.005;
-            }
-            renderer.render(scene, camera);
-        }
-        animate();
+<!-- ══════════ AFFILIATE ══════════ -->
+<div class="section" id="affiliate">
+  <div class="section-head">
+    <div>
+      <div class="label" style="margin-bottom:8px">Pasif Gelir · Referans Linkleri</div>
+      <div class="section-title">Kazan — <em>Paylaş</em></div>
+    </div>
+    <span class="label" style="color:var(--acid)">3KapiHub üyelerine özel</span>
+  </div>
 
-        // --- Mobil WebAR KAMERA SİSTEMİ ---
-        async function startWebAR() {
-            const video = document.getElementById('ar-video');
-            const arBtn = document.getElementById('ar-btn');
+  <div style="background:rgba(200,255,0,0.06);border:1px solid rgba(200,255,0,0.15);border-radius:8px;padding:18px 24px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:14px;font-weight:500;color:var(--white);margin-bottom:4px">🔒 Referans linklerine erişmek için üye olun</div>
+      <div style="font-size:12px;color:var(--dim)">Üyelik ücretsiz · 2 dakikada tamamlanır · Anında link erişimi</div>
+    </div>
+    <a href="#uyelik" class="btn-acid" style="font-size:11px;padding:9px 20px;white-space:nowrap">Üye Ol → Link Al</a>
+  </div>
 
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                video.srcObject = stream;
-                video.style.display = "block";
-                
-                // Arka planı şeffaf yapıp roket ölçeğini küçült
-                renderer.setClearColor(0x000000, 0);
-                rocketGroup.scale.set(0.6, 0.6, 0.6);
-                
-                arBtn.innerHTML = "<span>🚀</span> AR Modu Aktif (Masanıza Yansıtıldı)";
-                arBtn.classList.add("bg-cyan-500", "text-black");
-            } catch (err) {
-                alert("Kamera izni alınamadı veya cihazınız kamera erişimini desteklemiyor.");
-            }
-        }
+  <div class="aff-grid">
+    <a href="#uyelik" class="aff-card" style="text-decoration:none">
+      <div class="aff-icon">🔶</div>
+      <div class="aff-name">Binance</div>
+      <div class="aff-desc">Dünyanın en büyük kripto borsası. Referans ile üst tier komisyon paylaşımı.</div>
+      <div class="aff-reward">%20 komisyon paylaşımı</div>
+    </a>
+    <a href="#uyelik" class="aff-card" style="text-decoration:none">
+      <div class="aff-icon">🟦</div>
+      <div class="aff-name">OKX</div>
+      <div class="aff-desc">Asya'nın önde gelen borsası. 3KapiHub üyelerine özel yüksek oranlı referans programı.</div>
+      <div class="aff-reward">%30 + bonus</div>
+    </a>
+    <a href="#uyelik" class="aff-card" style="text-decoration:none">
+      <div class="aff-icon">🟡</div>
+      <div class="aff-name">Bybit</div>
+      <div class="aff-desc">Türkiye'de hızla büyüyen platform. Türk lirası desteği ve yüksek vadeli getiriler.</div>
+      <div class="aff-reward">%30 komisyon</div>
+    </a>
+    <a href="#uyelik" class="aff-card" style="text-decoration:none">
+      <div class="aff-icon">🦊</div>
+      <div class="aff-name">MetaMask</div>
+      <div class="aff-desc">Web3 cüzdan kurulum rehberi ve swap referans komisyonları.</div>
+      <div class="aff-reward">Swap fee paylaşımı</div>
+    </a>
+    <a href="#uyelik" class="aff-card" style="text-decoration:none">
+      <div class="aff-icon">🔷</div>
+      <div class="aff-name">Ledger</div>
+      <div class="aff-desc">Donanım cüzdan satışında yüksek komisyon. Her satışta sabit ödeme.</div>
+      <div class="aff-reward">%10 satış komisyonu</div>
+    </a>
+    <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="aff-card" style="text-decoration:none;border-style:dashed;border-color:rgba(200,255,0,0.2);background:rgba(200,255,0,0.03)">
+      <div class="aff-icon">➕</div>
+      <div class="aff-name" style="color:var(--acid)">Daha Fazla</div>
+      <div class="aff-desc">Tüm affiliate linkleri ve gelir araçları tencentcn.crypto'da.</div>
+      <div class="aff-reward" style="color:var(--teal);background:rgba(0,229,204,0.08);border-color:rgba(0,229,204,0.15)">tencentcn.crypto →</div>
+    </a>
+  </div>
+</div>
 
-        // --- MODAL YÖNETİMİ ---
-        const modalData = {
-            'digital-twin': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🌐 3D Dijital İkiz</h2><p class="text-xs text-gray-300">Antalya tesisi fiziksel sensör verileri doğrudan bu 3D modele aktarılır.</p>`,
-            'schedule': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🚀 Fırlatma Takvimi</h2><p class="text-xs text-gray-300">Gelecek test fırlatması: Suborbital Rocket-V1 (14 Gün Sonra)</p>`,
-            'ar-vr': `
-                <h2 class="text-xl font-bold text-cyan-400 mb-3">🥽 AR / VR İmmersif Simülasyonlar</h2>
-                <p class="text-xs text-gray-300 mb-3">Sağ alttaki <strong>'WebAR Kamerayı Aç'</strong> butonuna basarak kameranızı açabilir ve 3D roketi masanızın üzerine getirebilirsiniz!</p>
-                <button onclick="startWebAR(); closeModal();" class="w-full bg-cyan-500 text-black font-bold p-2 text-xs rounded-xl">Kamerayı Şimdi Aç</button>
-            `,
-            'telemetry': `<h2 class="text-xl font-bold text-cyan-400 mb-3">📊 OMNI-AI Telemetri</h2><p class="text-xs text-gray-300">LEO Yörüngesindeki ASC uydusu anomali riski %0.00 olarak doğrulanmıştır.</p>`,
-            'ticket': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🎟️ VR Uzay Bilet Rezervasyonu</h2><p class="text-xs text-gray-300">Antalya Planeteryum VR deneyimi için biletiniz hazırlanıyor...</p>`,
-            'ai-chat': `<h2 class="text-xl font-bold text-cyan-400 mb-3">🤖 ASC OMNI-AI Asistan</h2><p class="text-xs text-gray-300">Proje veya fırlatma detayları hakkında soru sorabilirsiniz.</p>`,
-            'welcome': `<h2 class="text-xl font-bold text-cyan-400 mb-2">🚀 ANTALYA SPACE CENTER</h2><p class="text-xs text-gray-300">Türkiye'nin AI ve 3D entegre uzay portalına hoş geldiniz.</p>`
-        };
+<!-- ══════════ MEMBERSHIP ══════════ -->
+<div style="background:var(--bg2);border-top:1px solid var(--line)">
+<div class="section" id="uyelik">
+  <div class="section-head">
+    <div>
+      <div class="label" style="margin-bottom:8px">Üyelik — 3KapiHub</div>
+      <div class="section-title">Topluluğa <em>Katıl</em></div>
+    </div>
+  </div>
 
-        function openModal(key) {
-            document.getElementById('modal-content').innerHTML = modalData[key] || '';
-            document.getElementById('modal-backdrop').classList.remove('hidden');
-        }
+  <!-- Email capture — main CTA -->
+  <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:36px 40px;margin-bottom:24px;display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:.04em;color:var(--white);line-height:1;margin-bottom:14px">
+        Ücretsiz Kayıt<br/><span style="color:var(--acid)">2 Dakika</span>
+      </div>
+      <p style="font-size:13px;color:var(--dim);line-height:1.75;margin-bottom:20px">
+        Üye olun, etkinlik hatırlatmaları alın, affiliate linklere erişin ve 3KapiHub topluluğunun bir parçası olun. Kredi kartı gerekmez.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)"><span style="color:var(--acid)">✓</span> Etkinlik hatırlatma e-postaları</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)"><span style="color:var(--acid)">✓</span> Üye özel affiliate linkler</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)"><span style="color:var(--acid)">✓</span> 3KapiHub etkinliklerinde öncelik</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)"><span style="color:var(--acid)">✓</span> tencentcn.crypto Pro deneme (7 gün)</div>
+      </div>
+    </div>
+    <div id="form-wrap">
+      <div style="display:flex;flex-direction:column;gap:12px" id="reg-form">
+        <input id="inp-name" type="text" placeholder="Ad Soyad" style="width:100%;padding:13px 16px;font-size:14px;border-radius:5px;font-family:'DM Sans',sans-serif"/>
+        <input id="inp-email" type="email" placeholder="E-posta adresiniz" style="width:100%;padding:13px 16px;font-size:14px;border-radius:5px;font-family:'DM Sans',sans-serif"/>
+        <input id="inp-city" type="text" placeholder="Şehir" style="width:100%;padding:13px 16px;font-size:14px;border-radius:5px;font-family:'DM Sans',sans-serif"/>
+        <button class="btn-acid" style="width:100%;padding:14px;font-size:13px;border-radius:5px;text-align:center" onclick="handleReg()">Üye Ol — Ücretsiz →</button>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dimmer);text-align:center;letter-spacing:.08em">
+          KİŞİSEL VERİLERİNİZ PAYLAŞILMAZ · GDPR UYUMLU
+        </div>
+      </div>
+      <div id="success-msg" style="display:none;text-align:center;padding:32px 20px">
+        <div style="font-size:48px;margin-bottom:14px">🎉</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--acid);letter-spacing:.04em;margin-bottom:8px">Hoş Geldin!</div>
+        <div style="font-size:13px;color:var(--dim);line-height:1.7;margin-bottom:18px">Kayıt tamamlandı. E-posta kutunu kontrol et.<br/>Bir sonraki adım:</div>
+        <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-acid" style="display:inline-block;font-size:12px;padding:11px 24px">tencentcn.crypto'ya Git →</a>
+      </div>
+    </div>
+  </div>
 
-        function closeModal() {
-            document.getElementById('modal-backdrop').classList.add('hidden');
-        }
+  <!-- Plan comparison -->
+  <div class="mem-strip">
+    <div class="mem-plan">
+      <div class="mem-tier">Ücretsiz</div>
+      <div class="mem-price">$0<span>/ay</span></div>
+      <div class="mem-desc">Topluluğa giriş ve temel araçlar.</div>
+      <ul class="mem-feats">
+        <li>Etkinlik takvimi</li>
+        <li>Affiliate link erişimi</li>
+        <li>Aylık meetup daveti</li>
+        <li>3KapiHub Discord</li>
+      </ul>
+      <a href="#" onclick="document.getElementById('inp-name').focus();return false" class="btn-ghost" style="display:block;text-align:center;font-size:12px;padding:11px">Üye Ol →</a>
+    </div>
+    <div class="mem-plan hot">
+      <div class="mem-tier" style="color:var(--acid)">● Pro — En Popüler</div>
+      <div class="mem-price" style="color:var(--acid)">$19<span>/ay</span></div>
+      <div class="mem-desc">tencentcn.crypto Pro + 3KapiHub ayrıcalıkları.</div>
+      <ul class="mem-feats">
+        <li>Her şey dahil (Ücretsiz)</li>
+        <li>tencentcn.crypto Pro erişim</li>
+        <li>Sınırsız haber & analiz</li>
+        <li>Etkinlik %20 indirim</li>
+        <li>Haftalık Asya kripto raporu</li>
+        <li>NFT erken erişim</li>
+      </ul>
+      <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-acid" style="display:block;text-align:center;font-size:12px;padding:11px;text-decoration:none">Pro'ya Geç → tencentcn.crypto</a>
+    </div>
+    <div class="mem-plan">
+      <div class="mem-tier">Kurumsal</div>
+      <div class="mem-price">$99<span>/ay</span></div>
+      <div class="mem-desc">Şirketler ve kurumsal yatırımcılar için.</div>
+      <ul class="mem-feats">
+        <li>Her şey dahil (Pro)</li>
+        <li>API erişimi</li>
+        <li>Etkinlik sponsorluğu</li>
+        <li>Reklam hakkı</li>
+        <li>Özel Asya raporları</li>
+      </ul>
+      <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-ghost" style="display:block;text-align:center;font-size:12px;padding:11px;text-decoration:none">İletişime Geç →</a>
+    </div>
+  </div>
+</div>
+</div>
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+<!-- ══════════ COMMUNITY CTA ══════════ -->
+<div class="section-sm">
+  <div class="community-cta">
+    <div>
+      <div class="label" style="color:rgba(13,13,16,0.5);margin-bottom:12px">Ana Platform</div>
+      <div class="cta-title">Asia Web3<br/>Portal →</div>
+      <div class="cta-desc">Haberler, kripto piyasaları, etkinlikler ve çok daha fazlası. 3KapiHub'ın ana merkezi tencentcn.crypto'da.</div>
+      <div style="display:flex;gap:10px;margin-top:24px;flex-wrap:wrap">
+        <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-dark">tencentcn.crypto → (ud.me)</a>
+        <a href="#uyelik" class="btn-dark-outline">Önce Üye Ol</a>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:120px;line-height:.85;color:rgba(13,13,16,0.12);letter-spacing:.04em;user-select:none">腾</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(13,13,16,0.4);letter-spacing:.15em;margin-top:8px">TENCENTCN.CRYPTO</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer style="background:var(--bg);border-top:1px solid var(--line);padding:40px 48px 24px">
+  <div style="max-width:1200px;margin:0 auto">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:48px;padding-bottom:32px;border-bottom:1px solid var(--line)">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.06em;color:var(--acid);margin-bottom:10px">3KapiHub</div>
+        <p style="font-size:13px;color:var(--dimmer);line-height:1.7;max-width:280px">Antalya Web3 topluluğu. Asus Service China ev sahipliğinde.</p>
+        <div style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dimmer)">
+          Sinan Mah. 1270 Sok. No:3/B<br/>Muratpaşa / Antalya<br/>0545 342 71 85
+        </div>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:14px">Linkler</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="#events" style="font-size:13px;color:var(--dimmer);text-decoration:none">Etkinlikler</a>
+          <a href="#tools"  style="font-size:13px;color:var(--dimmer);text-decoration:none">Web3 Araçlar</a>
+          <a href="#affiliate" style="font-size:13px;color:var(--dimmer);text-decoration:none">Affiliate</a>
+          <a href="#uyelik" style="font-size:13px;color:var(--dimmer);text-decoration:none">Üyelik</a>
+        </div>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:14px">Ana Portal</div>
+        <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--acid);text-decoration:none;display:block;margin-bottom:12px">tencentcn.crypto →</a>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" style="font-size:13px;color:var(--dimmer);text-decoration:none">Kripto Haberler</a>
+          <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" style="font-size:13px;color:var(--dimmer);text-decoration:none">Asya Pazarı</a>
+          <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" style="font-size:13px;color:var(--dimmer);text-decoration:none">Web3 Etkinlikler</a>
+          <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" style="font-size:13px;color:var(--dimmer);text-decoration:none">Pro Üyelik</a>
+        </div>
+      </div>
+    </div>
+    <div style="padding-top:20px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dimmer);letter-spacing:.1em">© 2026 3KAPIHUB · ASUS SERVICE CHINA · 3KAPIHUB.QZZ.IO</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dimmer);letter-spacing:.1em">POWERED BY DIGITALPLAT + TENCENTCN.CRYPTO</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ── Custom cursor ── */
+const cur = document.getElementById('cursor')
+document.addEventListener('mousemove', e => {
+  cur.style.left = e.clientX + 'px'
+  cur.style.top  = e.clientY + 'px'
+})
+document.querySelectorAll('a,button,[onclick]').forEach(el => {
+  el.addEventListener('mouseenter', () => cur.classList.add('big'))
+  el.addEventListener('mouseleave', () => cur.classList.remove('big'))
+})
+
+/* ── Events data ── */
+const EVENTS = [
+  { date:'14', mon:'HAZ', name:'Istanbul Blockchain Week 2026', loc:'İstanbul, Türkiye 🇹🇷', price:'Ücretsiz – $499', type:'conference', days:14, desc:'Türkiye\'nin en büyük blockchain etkinliği. 5 gün boyunca konferans, panel, hackathon. CZ (Binance), Sandeep Nailwal (Polygon) katılıyor.' },
+  { date:'20', mon:'HAZ', name:'3KapiHub Antalya Meetup', loc:'Asus Service China, Antalya 🇹🇷', price:'Ücretsiz', type:'meetup', days:20, desc:'3KapiHub\'ın aylık Web3 buluşması. Proje tanıtımları, networking, ücretsiz kahve. Asus Service China ev sahipliği yapıyor.' },
+  { date:'22', mon:'HAZ', name:'ETHGlobal Bangkok 2026', loc:'Bangkok, Tayland 🇹🇭', price:'Ücretsiz (başvuru)', type:'hackathon', days:22, desc:'48 saatlik global Ethereum hackathonu. $500K+ ödül havuzu. Vitalik Buterin katılıyor.' },
+  { date:'3',  mon:'TEM', name:'Blockchain for Finance — Antalya', loc:'Antalya, Türkiye 🇹🇷', price:'₺500 – ₺1,500', type:'workshop', days:33, desc:'3KapiHub\'ın fintech & DeFi workshopu. Kripto portföy yönetimi, yield farming ve vergi konuları.' },
+  { date:'5',  mon:'TEM', name:'Web3 İstanbul Hackathon', loc:'İstanbul, Türkiye 🇹🇷', price:'Ücretsiz', type:'hackathon', days:35, desc:'Türkiye\'nin en büyük Web3 hackathonu. 72 saat, $100K+ ödül. Tüm seviyelere açık.' },
+  { date:'11', mon:'TEM', name:'Korea Blockchain Week 2026', loc:'Seul, Güney Kore 🇰🇷', price:'$150 – $800', type:'conference', days:41, desc:'Asya\'nın en büyük blockchain konferansı. GameFi ve NFT odaklı. 10.000+ katılımcı.' },
+  { date:'28', mon:'TEM', name:'Solana Breakpoint 2026', loc:'Singapur 🇸🇬', price:'$200 – $600', type:'conference', days:58, desc:'Solana ekosisteminin yıllık büyük etkinliği. 100+ sunum, DeFi, NFT ve gaming odaklı.' },
+]
+
+const TAG_MAP = {
+  conference:['tag-conf','Konferans'],
+  hackathon: ['tag-hack','Hackathon'],
+  meetup:    ['tag-meetup','Meetup'],
+  summit:    ['tag-summit','Zirve'],
+  workshop:  ['tag-wkshp','Workshop'],
+}
+
+const table = document.getElementById('events-table')
+let openIdx = null
+
+function renderEvents() {
+  table.innerHTML = EVENTS.map((ev, i) => {
+    const [tagClass, tagLabel] = TAG_MAP[ev.type] || ['tag-conf','Etkinlik']
+    const dayPill = ev.days <= 7
+      ? `background:rgba(255,68,68,0.12);color:var(--red);border:1px solid rgba(255,68,68,0.2)`
+      : ev.days <= 21
+      ? `background:rgba(200,255,0,0.1);color:var(--acid);border:1px solid rgba(200,255,0,0.2)`
+      : `background:rgba(255,255,255,0.05);color:var(--dimmer);border:1px solid var(--line)`
+
+    return `
+    <div class="ev-row ${openIdx===i?'open':''}" onclick="toggleEv(${i})" style="border-radius:${i===0?'8px 8px 0 0':i===EVENTS.length-1?'0 0 8px 8px':'0'};border-top:${i===0?'1px solid var(--line)':'none'}">
+      <div class="ev-cell" style="border-radius:${i===0?'8px 0 0 0':i===EVENTS.length-1?'0 0 0 8px':'0'}">
+        <div class="ev-date-big">${ev.date}</div>
+        <div class="ev-date-sub">${ev.mon} 2026</div>
+      </div>
+      <div class="ev-cell">
+        <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+          <span class="ev-tag ${tagClass}">${tagLabel}</span>
+        </div>
+        <div class="ev-title">${ev.name}</div>
+        <div class="ev-loc">📍 ${ev.loc}</div>
+      </div>
+      <div class="ev-cell" style="text-align:right;align-items:flex-end">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--acid);margin-bottom:4px">${ev.price}</div>
+      </div>
+      <div class="ev-cell" style="align-items:flex-end;border-radius:${i===0?'0 8px 0 0':i===EVENTS.length-1?'0 0 8px 0':'0'}">
+        <div class="days-pill" style="${dayPill}">${ev.days}g kaldı</div>
+        <div style="margin-top:6px;font-size:10px;color:var(--dimmer)">${openIdx===i?'▲ kapat':'▼ detay'}</div>
+      </div>
+    </div>
+    <div class="ev-detail ${openIdx===i?'open':''}" style="${i===EVENTS.length-1?'border-radius:0 0 8px 8px':''}">
+      <div class="ev-detail-inner">
+        <p>${ev.desc}</p>
+        <div style="flex-shrink:0">
+          <a href="https://bafybeievg5wkajd5kazy5em6o5x5cqwqnytu347loxe7cj2oe5wgmuch7i.ipfs.inbrowser.link" target="_blank" class="btn-acid" style="font-size:11px;padding:9px 18px;display:block;text-align:center;margin-bottom:8px">Detay →</a>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dimmer);text-align:center;letter-spacing:.08em">tencentcn.crypto'da</div>
+        </div>
+      </div>
+    </div>`
+  }).join('')
+}
+
+function toggleEv(i) {
+  openIdx = openIdx === i ? null : i
+  renderEvents()
+}
+
+renderEvents()
+
+/* ── Form handler ── */
+function handleReg() {
+  const name  = document.getElementById('inp-name').value.trim()
+  const email = document.getElementById('inp-email').value.trim()
+  if (!name || !email) {
+    alert('Lütfen ad ve e-posta giriniz.')
+    return
+  }
+  document.getElementById('reg-form').style.display   = 'none'
+  document.getElementById('success-msg').style.display = 'block'
+}
+
+/* ── Smooth scroll for anchor links ── */
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const target = document.querySelector(a.getAttribute('href'))
+    if (target) { e.preventDefault(); target.scrollIntoView({ behavior:'smooth' }) }
+  })
+})
+</script>
 </body>
 </html>
